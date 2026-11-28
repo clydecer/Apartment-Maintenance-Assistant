@@ -37,4 +37,37 @@ class EndpointTests(unittest.TestCase):
  @patch('app.analyze',side_effect=RuntimeError('unavailable'))
  def test_failure(self,_):
   result=self.post('sparks at outlet'); self.assertEqual(result['status'],'Analysis failed'); self.assertTrue(result['risk']); self.assertNotIn('candidate',result)
+class AdapterTests(unittest.TestCase):
+ class FakeResponse:
+  headers = {}
+  def __init__(self, content): self.content = content
+  def __enter__(self): return self
+  def __exit__(self, *args): return False
+  def read(self, limit): return self.content
+ def response(self, content):
+  return self.FakeResponse(json.dumps({'choices':[{'message':{'content':content}}]}).encode())
+ @patch.dict('os.environ', {'OPENAI_API_KEY':'test-key', 'OPENAI_MODEL':'test-model'}, clear=True)
+ @patch('app.urllib.request.urlopen')
+ def test_adapter_sends_request_and_validates_response(self, mock_open):
+  mock_open.return_value=self.response(json.dumps(candidate()))
+  self.assertEqual(app.analyze(S)['category'], 'Plumbing')
+  request=mock_open.call_args.args[0]
+  payload=json.loads(request.data)
+  self.assertEqual(payload['model'], 'test-model')
+  self.assertEqual(payload['messages'][-1]['content'], S)
+  self.assertEqual(payload['response_format'], {'type':'json_object'})
+  self.assertEqual(mock_open.call_args.kwargs['timeout'], 25)
+ @patch.dict('os.environ', {'OPENAI_API_KEY':'test-key'}, clear=True)
+ @patch('app.urllib.request.urlopen')
+ def test_malformed_or_unsupported_model_response_fails_safely(self, mock_open):
+  bad=candidate(); bad['category_excerpt']='not in the request'
+  for content in ('not JSON', json.dumps(bad), json.dumps({'category':'Plumbing'})):
+   with self.subTest(content=content):
+    mock_open.return_value=self.response(content)
+    with self.assertRaisesRegex(RuntimeError, 'Analysis failed'): app.analyze(S)
+ @patch.dict('os.environ', {'OPENAI_API_KEY':'test-key'}, clear=True)
+ @patch('app.urllib.request.urlopen', side_effect=TimeoutError())
+ def test_timeout_fails_safely(self, mock_open):
+  with self.assertRaisesRegex(RuntimeError, 'Analysis failed'): app.analyze(S)
+
 if __name__=='__main__': unittest.main()
