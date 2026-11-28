@@ -49,7 +49,7 @@ The Python server hosts the interface locally and forwards fictional description
 python3 -m unittest discover -s tests -v
 ```
 
-Tests cover boundaries, danger phrases, candidate validation, and mocked success and failure responses. See [validation notes](docs/VALIDATION.md). A live model call has not yet been validated in this environment.
+Tests cover boundaries, danger phrases, candidate validation, mocked endpoint responses, and the AI adapter with controlled responses. A developer also walked through the manual fallback in a browser. See [validation notes](docs/VALIDATION.md). A live model call has not yet been validated in this environment.
 
 ## Limitations and next steps
 
